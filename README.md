@@ -43,3 +43,8 @@ speaker-appliance plan (Chromium kiosk first, native Python/FluidSynth player la
 - Instruments: FluidR3_GM samples via [gleitz/midi-js-soundfonts](https://github.com/gleitz/midi-js-soundfonts), self-hosted in `samples/`
 - Basemap: © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, © [CARTO](https://carto.com/attributions)
 - Inspired by [trainjazz.com](https://www.trainjazz.com/)
+
+## Raspberry Pi
+
+A headless, audio-only player lives in [`pi/`](pi/) — no browser, no display.
+See [pi/README.md](pi/README.md).

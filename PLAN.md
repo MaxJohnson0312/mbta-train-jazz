@@ -167,7 +167,33 @@ State: all files written and running. Post-listening revisions (Max's feedback, 
    volume/mute work; overnight (few vehicles) still musical (bass+drums carry).
 5. Tune to taste: BPM/SWING/progression in config.js are the intended knobs.
 
-## 6. Raspberry Pi roadmap (phase 2 — the real goal)
+## 5b. Raspberry Pi player — BUILT (2026-09-07)
+
+**`pi/` contains a finished headless, audio-only player.** Max asked for sounds only,
+no visualization, so this is the "native platform" end state, not the kiosk stopgap.
+
+- Pure Python: `numpy` + `scipy` for DSP, `requests` for the SSE stream. `sounddevice`
+  if importable, otherwise pipes PCM to ALSA's `aplay` (always present on Pi OS).
+- `pi/mbtajazz/synth.py` is a **numpy port of the Web Audio voices** in `js/music.js` —
+  same oscillator ratios, envelopes, filters and gains. `pi/mbtajazz/config.py` mirrors
+  `js/config.js`. **Change one, change the other**, or the Pi and the site diverge.
+- The audio stream's frame counter is the master clock (no drift). Notes are rendered to
+  finished stereo buffers on the *calling* thread; the realtime path only does additions.
+  Never render inside the audio callback — that will underrun.
+- `pi/install.sh` installs to `/opt/mbta-jazz`, creates a venv with
+  `--system-site-packages` (apt's prebuilt `python3-numpy`/`python3-scipy` — pip would
+  compile them from source and take forever on a Pi), runs an offline smoke test, and
+  enables a systemd unit that starts on boot and restarts on failure.
+- Testing without hardware or network:
+  `python -m mbtajazz --simulate --render out.wav --seconds 60`.
+  Note `--render` paces to **realtime when the live feed is the source** (otherwise the
+  file renders in seconds and captures no vehicle activity) and runs **as fast as
+  possible when simulating** (where events are injected on the audio timeline instead).
+- Verified: live SSE gives ~425 vehicles and triggers notes on every line including
+  Silver Line, Commuter Rail and ferries; 30 s renders in ~4.7 s on a desktop (~6×
+  realtime), so a Pi 4/5 has ample headroom.
+
+## 6. Raspberry Pi roadmap (the browser-kiosk alternative)
 
 Two paths, in order of pragmatism:
 1. **Kiosk (do first):** Pi OS + auto-started Chromium `--kiosk --autoplay-policy=no-user-gesture-required`
