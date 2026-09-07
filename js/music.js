@@ -18,7 +18,16 @@ const A4 = 440;
 
 const midiHz = (m) => A4 * Math.pow(2, (m - 69) / 12);
 // Our pitch numbers: semitones-from-C * octave; convert to MIDI (C4 = 60).
-const pitchHz = (semitoneFromC, octave) => midiHz(12 * (octave + 1) + semitoneFromC);
+const pitchMidi = (semitoneFromC, octave) => 12 * (octave + 1) + semitoneFromC;
+const pitchHz = (semitoneFromC, octave) => midiHz(pitchMidi(semitoneFromC, octave));
+
+// Recorded-instrument samples (FluidR3_GM via gleitz/midi-js-soundfonts),
+// self-hosted under samples/<voice>/<Note>.mp3. Synthesis stays as a fallback
+// if a sample is missing or the load fails.
+const SAMPLE_BASE = "samples";
+const NOTE_NAMES = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
+const midiToName = (m) => NOTE_NAMES[m % 12] + (Math.floor(m / 12) - 1);
+const MAX_SHIFT = 6;   // semitones we'll pitch-shift a neighbouring sample by
 
 export class Band {
   constructor() {
@@ -35,6 +44,89 @@ export class Band {
     this.onNotePlayed = null;      // callback(routeId) for UI glow
     this.enabled = { cr: true, ferry: true, buses: true, rhythm: false };
     this.recentMelodic = [];       // timestamps for global note-rate cap
+    this.buffers = {};             // voice -> { midi: AudioBuffer }
+    this.useSamples = false;
+    this.mutedRoutes = new Set();  // route ids (plus "CR" / "Boat") silenced from the legend
+  }
+
+  toggleRouteMute(key) {
+    if (this.mutedRoutes.has(key)) this.mutedRoutes.delete(key);
+    else this.mutedRoutes.add(key);
+    return this.mutedRoutes.has(key);
+  }
+
+  // Fetch + decode every sampled note. Call after start() (needs the context).
+  // onProgress(loaded, total) drives the loading UI.
+  async loadSamples(onProgress) {
+    let manifest;
+    try {
+      const r = await fetch(`${SAMPLE_BASE}/manifest.json`);
+      if (!r.ok) throw new Error(r.status);
+      manifest = await r.json();
+    } catch {
+      this.useSamples = false;
+      return false;               // stay on synthesis
+    }
+
+    const jobs = [];
+    for (const [voice, midis] of Object.entries(manifest))
+      for (const midi of midis) jobs.push([voice, midi]);
+
+    let done = 0;
+    const load = async ([voice, midi]) => {
+      try {
+        const res = await fetch(`${SAMPLE_BASE}/${voice}/${midiToName(midi)}.mp3`);
+        const buf = await this.ctx.decodeAudioData(await res.arrayBuffer());
+        (this.buffers[voice] ||= {})[midi] = buf;
+      } catch { /* leave the gap; playSample falls back */ }
+      if (onProgress) onProgress(++done, jobs.length);
+    };
+
+    // modest concurrency so mobile doesn't choke on parallel decodes
+    const queue = jobs.slice();
+    await Promise.all(Array.from({ length: 8 }, async () => {
+      while (queue.length) await load(queue.shift());
+    }));
+
+    this.useSamples = Object.keys(this.buffers).length > 0;
+    return this.useSamples;
+  }
+
+  // Play a recorded note. Returns false if this voice/pitch isn't available,
+  // so callers can fall back to synthesis.
+  playSample(voice, midi, t, vel, pan, fadeAfter = 3.0) {
+    const bank = this.buffers[voice];
+    if (!bank) return false;
+
+    let buf = bank[midi], rate = 1;
+    if (!buf) {                                  // nearest sample, pitch-shifted
+      let best = null, bestD = Infinity;
+      for (const k of Object.keys(bank)) {
+        const d = Math.abs(k - midi);
+        if (d < bestD) { bestD = d; best = +k; }
+      }
+      if (best === null || bestD > MAX_SHIFT) return false;
+      buf = bank[best];
+      rate = Math.pow(2, (midi - best) / 12);
+    }
+
+    const src = this.ctx.createBufferSource();
+    src.buffer = buf;
+    src.playbackRate.value = rate;
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(vel, t);
+    const p = this.ctx.createStereoPanner();
+    p.pan.value = pan || 0;
+    src.connect(g).connect(p).connect(this.master);
+
+    const dur = buf.duration / rate;
+    if (fadeAfter && fadeAfter < dur) {          // gentle tail, never a hard cut
+      g.gain.setValueAtTime(vel, t + fadeAfter);
+      g.gain.setTargetAtTime(0.0001, t + fadeAfter, 0.4);
+      src.stop(t + fadeAfter + 2.0);
+    }
+    src.start(t);
+    return true;
   }
 
   async start() {
@@ -93,17 +185,19 @@ export class Band {
     const beatInBar = b % BEATS_PER_BAR;
     if (beatInBar === 0 && this.onBar) this.onBar(chord.name, Math.floor(b / BEATS_PER_BAR));
 
-    if (!this.enabled.rhythm) return;   // bed is opt-in
+    // Walking bass — the harmonic "bed", opt-in and independent of the buses.
+    if (this.enabled.rhythm)
+      this.bassNote(chord.bassNotes[beatInBar], t, 0.9 - Math.random() * 0.15);
 
-    // Walking bass: quarter notes
-    this.bassNote(chord.bassNotes[beatInBar], t, 0.9 - Math.random() * 0.15);
-
-    // Drums
+    // Brushes & shaker — driven by how many buses are running. These play on
+    // their own (buses ARE the drummer); the bed only adds a floor under them.
+    if (!this.enabled.buses && !this.enabled.rhythm) return;
     const density = this.enabled.buses ? this.busDensity : 0.35;
+
     this.ride(t, 0.5 + density * 0.3);                       // downbeat ride
     if (density > 0.15) this.ride(t + this.secPerBeat * SWING, 0.25 + density * 0.35); // swung off-8th
     if (beatInBar === 1 || beatInBar === 3) this.hat(t, 0.5);
-    if (density > 0.6 && Math.random() < density - 0.4) this.shaker(t + this.secPerBeat * 0.5, 0.15);
+    if (density > 0.45 && Math.random() < density) this.shaker(t + this.secPerBeat * 0.5, 0.2);
   }
 
   // Quantize an incoming event to the next swung 8th at/after now.
@@ -123,7 +217,7 @@ export class Band {
   triggerVehicleNote(routeId, progress01, directionId, isArrival) {
     if (!this.ctx) return;
     const style = RAIL_ROUTES[routeId];
-    if (!style) return;
+    if (!style || this.mutedRoutes.has(routeId)) return;
 
     // global melodic rate cap ~8/s (prefer arrivals when crowded)
     const now = performance.now();
@@ -143,6 +237,7 @@ export class Band {
 
     this.pendingNotes.push({
       routeId, time,
+      midi: pitchMidi(semis, style.octave),
       hz: pitchHz(semis, style.octave),
       instrument: style.instrument,
       pan: style.pan || 0,
@@ -151,17 +246,19 @@ export class Band {
   }
 
   triggerHorn(progress01) {
-    if (!this.ctx || !this.enabled.cr) return;
+    if (!this.ctx || !this.enabled.cr || this.mutedRoutes.has("CR")) return;
     const { time, beat } = this.nextGridTime();
     const chord = this.chordAt(Math.max(0, beat));
     const semis = chord.root + (progress01 > 0.5 ? 7 : 0);
-    this.horn(pitchHz(semis, 3), time, 0.5);
+    if (!this.playSample("horn", pitchMidi(semis, 3), time, 0.5, -0.1, 2.2))
+      this.horn(pitchHz(semis, 3), time, 0.5);
   }
 
   triggerBell() {
-    if (!this.ctx || !this.enabled.ferry) return;
+    if (!this.ctx || !this.enabled.ferry || this.mutedRoutes.has("Boat")) return;
     const { time } = this.nextGridTime();
-    this.bell(pitchHz(7, 5), time, 0.5);
+    if (!this.playSample("bell", pitchMidi(7, 5), time, 0.5, 0.4, null))
+      this.bell(pitchHz(7, 5), time, 0.5);
   }
 
   playMelodic(n) {
@@ -169,10 +266,12 @@ export class Band {
     setTimeout(() => {
       this.activePerRoute.set(n.routeId, Math.max(0, (this.activePerRoute.get(n.routeId) || 1) - 1));
     }, 2000);
-    const fn = { rhodes: this.rhodes, vibes: this.vibes, trumpet: this.trumpet,
-                 sax: this.sax, flute: this.flute, frenchhorn: this.frenchhorn,
-                 tuba: this.tuba, violin: this.violin, celesta: this.celesta }[n.instrument];
-    if (fn) fn.call(this, n.hz, n.time, n.vel, n.pan);
+    if (!this.playSample(n.instrument, n.midi, n.time, n.vel, n.pan)) {
+      const fn = { rhodes: this.rhodes, vibes: this.vibes, trumpet: this.trumpet,
+                   sax: this.sax, flute: this.flute, frenchhorn: this.frenchhorn,
+                   tuba: this.tuba, violin: this.violin, celesta: this.celesta }[n.instrument];
+      if (fn) fn.call(this, n.hz, n.time, n.vel, n.pan);
+    }
     if (this.onNotePlayed) {
       const delayMs = Math.max(0, (n.time - this.ctx.currentTime) * 1000);
       setTimeout(() => this.onNotePlayed(n.routeId), delayMs);
@@ -478,6 +577,7 @@ export class Band {
 
   // ---- rhythm bed (opt-in) ----
   bassNote(semis, t, vel) {
+    if (this.playSample("bass", pitchMidi(semis, 2), t, vel * 0.8, 0, 1.0)) return;
     const dest = this.out(0);
     const o = this.ctx.createOscillator();
     o.type = "triangle";

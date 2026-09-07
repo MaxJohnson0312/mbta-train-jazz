@@ -184,8 +184,35 @@ Two paths, in order of pragmatism:
   Note: this machine's homelab (elite-server, see EliteDesk Server Setup project) could
   also host the web version 24/7 in Docker trivially — same static folder + any web server.
 
+## 6b. Sound sources (settled 2026-09-07)
+
+**Instruments are RECORDED SAMPLES, not synthesis.** Max correctly judged the hand-rolled
+Web Audio oscillator voices as not good enough. The band now plays FluidR3_GM samples from
+[gleitz/midi-js-soundfonts](https://github.com/gleitz/midi-js-soundfonts) (MIT repo;
+FluidR3_GM soundfont is freely redistributable), **self-hosted** in `samples/`:
+
+- Only the notes the progression can actually produce were downloaded (180 files, ~4 MB) —
+  see the generator in the scratchpad, or regenerate: the note set is the union of all
+  `PROGRESSION[].scale` values and those +12, at each voice's `octave`.
+- `samples/manifest.json` maps voice → available MIDI numbers; `music.js` fetches + decodes
+  all of it on Start with a progress bar, then `playSample()` plays the exact note.
+  Missing note → nearest sample pitch-shifted via `playbackRate` (≤ 6 semitones).
+- **Synthesis is retained as a fallback** and still runs if the manifest/fetch fails.
+  Drums (ride/hat/shaker) remain synthesized noise — brushed percussion is convincing that
+  way and avoids a drum-kit sample map.
+- Voice→soundfont mapping: rhodes=electric_piano_1, celesta=celesta, trumpet=muted_trumpet,
+  violin=violin, flute=flute, frenchhorn=french_horn, tuba=tuba, sax=alto_sax,
+  horn(CR)=brass_section, bell(ferry)=tubular_bells, bass=acoustic_bass.
+- If the note set changes (new chords/octaves), re-run the downloader and regenerate the
+  manifest, or those notes silently fall back to pitch-shifting/synthesis.
+
+**CARTO key / attribution.** `CARTO_KEY` in config.js is passed as `?key=` on tile URLs for
+usage tracking. It does **not** remove attribution and cannot: the basemap is OpenStreetMap
+data under **ODbL**, which legally requires credit, and CARTO requires it on *every* plan
+including paid. Do not remove the attribution control — keep it small and dim instead.
+
 ## 7. Later ideas (parked, not v1)
-- Sampled instruments / SoundFont for realism; per-line volume mixing UI.
+- Per-line volume sliders (click-to-mute already shipped in the legend).
 - Alerts feed → musical events (delay alert = blue note / minor turnaround).
 - Predictions feed for anticipatory phrasing (note *before* arrival).
 - Spotlight mode: pick 3–5 key bus routes (1, 28, 39, 66, SL1…) as soft plucked guitar.

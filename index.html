@@ -22,6 +22,10 @@
 
     <div id="start-panel">
       <button id="start-btn">▶ &nbsp;Start the band</button>
+      <div id="load-bar" class="hidden">
+        <div id="load-track"><div id="load-fill"></div></div>
+        <div id="load-label">tuning up…</div>
+      </div>
       <p class="hint">Live vehicles from the MBTA become a jazz combo.<br>
       Audio starts on click (browser requirement).<br>
       On a phone, make sure media volume is up.</p>
@@ -45,7 +49,7 @@
       <p class="hint">Without a key the app polls every 5&nbsp;s (anonymous rate limit).
       With a key it uses the MBTA's server-sent-event stream: instant updates, one connection.</p>
       <label class="row"><input type="checkbox" id="rhythm-toggle"> Rhythm bed (walking bass &amp; drums)</label>
-      <label class="row"><input type="checkbox" id="buses-toggle" checked> Buses drive the rhythm section</label>
+      <label class="row"><input type="checkbox" id="buses-toggle" checked> Buses play brushes &amp; shaker</label>
       <label class="row"><input type="checkbox" id="cr-toggle" checked> Commuter rail horns</label>
       <label class="row"><input type="checkbox" id="ferry-toggle" checked> Ferry bells</label>
       <label>Volume <input type="range" id="volume-slider" min="0" max="100" value="70"></label>

@@ -7,12 +7,17 @@ export const API_BASE = "https://api-v3.mbta.com";
 // override it in Settings (stored in localStorage). Revocable at api-v3.mbta.com.
 export const DEFAULT_API_KEY = "fbfb915838234e6d88bd6256ac2b1de8";
 
+// CARTO basemap key — used for usage tracking on the tile CDN (the tiles are
+// public either way). Note: it does NOT waive attribution; the basemap data is
+// OpenStreetMap under ODbL, which requires credit on every CARTO plan.
+export const CARTO_KEY = "cb1_30lc_1_3a1292f7a07fd372249c8199";
+
 // Melodic voices — one per rail line, mirroring trainjazz.com's
 // "one instrument per line" idea. Buses are handled separately as
 // an aggregate rhythm section (250+ individual bus notes = noise).
 export const RAIL_ROUTES = {
   "Red":      { color: "#DA291C", instrument: "rhodes",   label: "Red Line",     who: "electric piano", octave: 4, pan: -0.3 },
-  "Mattapan": { color: "#DA291C", instrument: "celesta",  label: "Mattapan",     who: "celesta",        octave: 6, pan: -0.5 },
+  "Mattapan": { color: "#DA291C", instrument: "celesta",  label: "Mattapan",     who: "celesta",        octave: 5, pan: -0.5 },
   "Orange":   { color: "#ED8B00", instrument: "trumpet",    label: "Orange Line",  who: "muted trumpet", octave: 4, pan: 0.3 },
   "Blue":     { color: "#003DA5", instrument: "violin",     label: "Blue Line",    who: "violin",        octave: 5, pan: 0.5 },
   "Green-B":  { color: "#00843D", instrument: "flute",      label: "Green Line B", who: "flute",         octave: 5, pan: -0.2 },

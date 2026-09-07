@@ -36,3 +36,10 @@ Synth voicings are in `js/music.js`.
 
 See `PLAN.md` for the full architecture, research notes, and the Raspberry Pi
 speaker-appliance plan (Chromium kiosk first, native Python/FluidSynth player later).
+
+## Credits
+
+- Live data: [MBTA V3 API](https://www.mbta.com/developers/v3-api)
+- Instruments: FluidR3_GM samples via [gleitz/midi-js-soundfonts](https://github.com/gleitz/midi-js-soundfonts), self-hosted in `samples/`
+- Basemap: © [OpenStreetMap](https://www.openstreetmap.org/copyright) contributors, © [CARTO](https://carto.com/attributions)
+- Inspired by [trainjazz.com](https://www.trainjazz.com/)

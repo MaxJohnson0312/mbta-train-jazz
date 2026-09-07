@@ -94,11 +94,28 @@ function buildLegend() {
   rows.push({ id: "CR", color: CR_STYLE.color, label: "Commuter Rail", who: CR_STYLE.who });
   rows.push({ id: "Boat", color: FERRY_STYLE.color, label: "Ferries", who: FERRY_STYLE.who });
   rows.push({ id: "Bus", color: BUS_STYLE.color, label: "Buses", who: BUS_STYLE.who });
-  $("legend").innerHTML = rows.map((r) =>
-    `<div class="legend-item" data-route="${r.id}">
+  $("legend").innerHTML =
+    `<div class="legend-hint">click an instrument to mute it</div>` +
+    rows.map((r) =>
+    `<div class="legend-item" data-route="${r.id}" title="Click to mute ${r.label}">
        <span class="swatch" style="background:${r.color};color:${r.color}"></span>
        <span>${r.label}</span><span class="who">${r.who}</span>
      </div>`).join("");
+
+  $("legend").addEventListener("click", (e) => {
+    const item = e.target.closest(".legend-item");
+    if (!item) return;
+    const key = item.dataset.route;
+    let muted;
+    if (key === "Bus") {                        // buses are the drummer, not a voice
+      state.band.enabled.buses = !state.band.enabled.buses;
+      muted = !state.band.enabled.buses;
+      $("buses-toggle").checked = state.band.enabled.buses;
+    } else {
+      muted = state.band.toggleRouteMute(key);
+    }
+    item.classList.toggle("muted", muted);
+  });
 }
 
 function glowLegend(routeId) {
@@ -135,10 +152,21 @@ function unlockMediaSession() {
 
 // ---- UI ----
 $("start-btn").addEventListener("click", async () => {
-  $("start-panel").classList.add("hidden");
-  $("controls").classList.remove("hidden");
   unlockMediaSession();
   await state.band.start();
+
+  // Load the recorded instruments before the band plays (≈4 MB, cached after).
+  $("start-btn").disabled = true;
+  const bar = $("load-bar"), fill = $("load-fill"), label = $("load-label");
+  bar.classList.remove("hidden");
+  await state.band.loadSamples((done, total) => {
+    const pct = Math.round((done / total) * 100);
+    fill.style.width = pct + "%";
+    label.textContent = `tuning up… ${pct}%`;
+  });
+
+  $("start-panel").classList.add("hidden");
+  $("controls").classList.remove("hidden");
   state.band.onNotePlayed = (routeId) => { glowLegend(routeId); state.map.pulseRoute(routeId); };
   state.band.onBar = (chord) => { $("now-playing").textContent = `now playing: ${chord} · live from the T`; };
   buildLegend();

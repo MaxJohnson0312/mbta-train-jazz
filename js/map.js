@@ -2,7 +2,7 @@
 // appear as you zoom, never any road text), MBTA route lines, live vehicle dots
 // with eased motion and note pulses, and station names that fade in on zoom.
 
-import { styleForRoute, ROUTE_TYPE } from "./config.js";
+import { styleForRoute, ROUTE_TYPE, CARTO_KEY } from "./config.js";
 
 const LABEL_ZOOM = 14;    // station names visible at/after this zoom
 const DOT_ZOOM = 12;      // station dots visible at/after this zoom
@@ -18,12 +18,14 @@ export class TransitMap {
       attributionControl: true,
     });
 
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png", {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
-      subdomains: "abcd",
-      maxZoom: 20,
-      opacity: 0.55,          // keep the city faint; the transit is the subject
-    }).addTo(this.map);
+    L.tileLayer(
+      `https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png?key=${CARTO_KEY}`, {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        subdomains: "abcd",
+        maxZoom: 20,
+        detectRetina: true,     // {r} -> @2x on high-DPI screens (phones especially)
+        opacity: 0.55,          // keep the city faint; the transit is the subject
+      }).addTo(this.map);
 
     this.renderer = L.canvas({ padding: 0.3 });   // one canvas for all vector layers
     this.vehicles = new Map();  // id -> {marker, lat, lon, tLat, tLon, routeId, pulse, baseRadius}

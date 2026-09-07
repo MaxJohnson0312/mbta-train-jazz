@@ -93,6 +93,28 @@ h1 {
 
 .hint { color: var(--dim); font-size: 0.85rem; margin-top: 14px; line-height: 1.5; }
 
+#load-bar { margin-top: 20px; }
+#load-track {
+  height: 4px;
+  background: #232838;
+  border-radius: 999px;
+  overflow: hidden;
+}
+#load-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--accent);
+  border-radius: 999px;
+  transition: width 0.2s ease;
+}
+#load-label {
+  margin-top: 8px;
+  color: var(--dim);
+  font-size: 0.78rem;
+  font-family: "Segoe UI", system-ui, sans-serif;
+}
+#start-btn:disabled { opacity: 0.4; cursor: default; transform: none; }
+
 #controls {
   position: absolute;
   top: 18px; right: 18px;
@@ -111,7 +133,24 @@ h1 {
   font-family: "Segoe UI", system-ui, sans-serif;
   max-width: 240px;
 }
-.legend-item { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
+.legend-hint {
+  color: #5f6478;
+  font-size: 0.68rem;
+  font-style: italic;
+  margin-bottom: 8px;
+  letter-spacing: 0.02em;
+}
+.legend-item {
+  display: flex; align-items: center; gap: 8px; margin: 3px 0;
+  cursor: pointer;
+  border-radius: 4px;
+  padding: 2px 4px;
+  transition: opacity 0.15s ease, background 0.15s ease;
+}
+.legend-item:hover { background: rgba(255, 255, 255, 0.06); }
+.legend-item.muted { opacity: 0.32; }
+.legend-item.muted .swatch { background: transparent !important; border: 1px solid currentColor; }
+.legend-item.muted span:not(.swatch) { text-decoration: line-through; }
 .legend-item .swatch {
   width: 10px; height: 10px; border-radius: 50%;
   flex: none;
