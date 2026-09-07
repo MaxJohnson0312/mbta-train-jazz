@@ -1,7 +1,7 @@
 // Wiring: boot, settings, and the data → music/map hookup.
 
 import { RAIL_ROUTES, ROUTE_TYPE, styleForRoute, BUS_STYLE, CR_STYLE, FERRY_STYLE, DEFAULT_API_KEY } from "./config.js";
-import { VehicleFeed, fetchRoutes, fetchShapes } from "./mbta.js";
+import { VehicleFeed, fetchRoutes, fetchShapes, fetchStations } from "./mbta.js";
 import { Band } from "./music.js";
 import { TransitMap } from "./map.js";
 
@@ -87,14 +87,9 @@ function startFeed() {
 }
 
 function buildLegend() {
-  const seen = new Set();
   const rows = [];
   for (const [id, s] of Object.entries(RAIL_ROUTES)) {
-    const name = s.label.replace(/ [BCDE]$/, "");
-    const key = s.instrument + name;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    rows.push({ id, color: s.color, label: name, who: s.who });
+    rows.push({ id, color: s.color, label: s.label, who: s.who });
   }
   rows.push({ id: "CR", color: CR_STYLE.color, label: "Commuter Rail", who: CR_STYLE.who });
   rows.push({ id: "Boat", color: FERRY_STYLE.color, label: "Ferries", who: FERRY_STYLE.who });
@@ -107,8 +102,7 @@ function buildLegend() {
 }
 
 function glowLegend(routeId) {
-  const key = routeId.startsWith("Green-") ? "Green-B"
-            : routeId.startsWith("CR-") ? "CR"
+  const key = routeId.startsWith("CR-") ? "CR"
             : routeId.startsWith("Boat-") ? "Boat" : routeId;
   const el = document.querySelector(`.legend-item[data-route="${key}"]`);
   if (!el) return;
@@ -150,6 +144,7 @@ $("start-btn").addEventListener("click", async () => {
   buildLegend();
   startFeed();
   loadShapes();   // async; map lines appear as they arrive
+  fetchStations(state.apiKey).then((stops) => state.map.addStations(stops)).catch(() => {});
   setInterval(updateBusDensity, 5000);
 });
 

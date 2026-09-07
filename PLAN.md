@@ -122,8 +122,16 @@ State: all files written and running. Post-listening revisions (Max's feedback, 
   formant sweep + delayed vibrato + sustain; clarinet = square (odd harmonics) + lowpass +
   sine reinforcement + late vibrato + sustain. Keep percussive vs sustained voices clearly
   distinct — this was explicit listening feedback.
-- **Map zoom/pan:** wheel zooms about cursor (1×–40×), drag pans, double-click resets;
-  line widths/dot sizes scale by zoom^0.55.
+- **Map is Leaflet now** (1.9.4 via unpkg CDN, replacing the hand-rolled canvas):
+  Carto `dark_nolabels` raster tiles at 0.55 opacity — faint dark city basemap, roads
+  emerge on zoom, deliberately NO text labels (Max: roads yes, road names no). Station
+  dots appear at zoom ≥ 12 and station names at zoom ≥ 14 (from `/stops?filter[route_type]=0,1`,
+  deduped by name — API returns per-platform records). Vehicles/routes draw on one
+  L.canvas renderer; eased marker motion + pulse in a rAF loop. Pinch-zoom free on mobile.
+- **Instrument map (Max's picks, 2026-09-07):** Green-E (Lechmere–Heath) = saxophone,
+  Green-B (–Boston College) = flute, Green-C (–Cleveland Circle) = french horn,
+  Green-D (Fenway–Riverside) = tuba, Blue = violin (clarinet retired). Each Green branch
+  is its own legend row. Red = Rhodes, Orange = muted trumpet, Mattapan = celesta stay.
 
 ## 4. Engine specifics (implement exactly this unless testing says otherwise)
 

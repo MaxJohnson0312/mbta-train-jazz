@@ -13,12 +13,12 @@ export const DEFAULT_API_KEY = "fbfb915838234e6d88bd6256ac2b1de8";
 export const RAIL_ROUTES = {
   "Red":      { color: "#DA291C", instrument: "rhodes",   label: "Red Line",     who: "electric piano", octave: 4, pan: -0.3 },
   "Mattapan": { color: "#DA291C", instrument: "celesta",  label: "Mattapan",     who: "celesta",        octave: 6, pan: -0.5 },
-  "Orange":   { color: "#ED8B00", instrument: "trumpet",  label: "Orange Line",  who: "muted trumpet",  octave: 4, pan: 0.3 },
-  "Blue":     { color: "#003DA5", instrument: "clarinet", label: "Blue Line",    who: "clarinet",       octave: 5, pan: 0.5 },
-  "Green-B":  { color: "#00843D", instrument: "vibes",    label: "Green Line B", who: "vibraphone",     octave: 5, pan: -0.6 },
-  "Green-C":  { color: "#00843D", instrument: "vibes",    label: "Green Line C", who: "vibraphone",     octave: 5, pan: -0.2 },
-  "Green-D":  { color: "#00843D", instrument: "vibes",    label: "Green Line D", who: "vibraphone",     octave: 4, pan: 0.2 },
-  "Green-E":  { color: "#00843D", instrument: "vibes",    label: "Green Line E", who: "vibraphone",     octave: 4, pan: 0.6 },
+  "Orange":   { color: "#ED8B00", instrument: "trumpet",    label: "Orange Line",  who: "muted trumpet", octave: 4, pan: 0.3 },
+  "Blue":     { color: "#003DA5", instrument: "violin",     label: "Blue Line",    who: "violin",        octave: 5, pan: 0.5 },
+  "Green-B":  { color: "#00843D", instrument: "flute",      label: "Green Line B", who: "flute",         octave: 5, pan: -0.2 },
+  "Green-C":  { color: "#00843D", instrument: "frenchhorn", label: "Green Line C", who: "french horn",   octave: 3, pan: 0.2 },
+  "Green-D":  { color: "#00843D", instrument: "tuba",       label: "Green Line D", who: "tuba",          octave: 2, pan: 0.6 },
+  "Green-E":  { color: "#00843D", instrument: "sax",        label: "Green Line E", who: "saxophone",     octave: 4, pan: -0.6 },
 };
 
 // Modes matched by prefix / route_type rather than exact id.

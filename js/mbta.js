@@ -49,6 +49,23 @@ export async function fetchShapes(routeId, apiKey) {
   return json.data.map((res) => decodePolyline(res.attributes.polyline));
 }
 
+// Subway/light-rail stations for map labels, deduped by name (the API returns
+// per-platform records).
+export async function fetchStations(apiKey) {
+  const url = `${API_BASE}/stops?filter[route_type]=0,1&fields[stop]=name,latitude,longitude${keyParam(apiKey)}`;
+  const r = await fetch(url);
+  if (!r.ok) return [];
+  const json = await r.json();
+  const seen = new Set(), out = [];
+  for (const s of json.data) {
+    const a = s.attributes;
+    if (seen.has(a.name)) continue;
+    seen.add(a.name);
+    out.push({ name: a.name, lat: a.latitude, lon: a.longitude });
+  }
+  return out;
+}
+
 export class VehicleFeed {
   constructor({ apiKey, onReset, onVehicle, onRemove, onStatus }) {
     this.apiKey = apiKey;

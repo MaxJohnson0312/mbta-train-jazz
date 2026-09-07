@@ -170,7 +170,8 @@ export class Band {
       this.activePerRoute.set(n.routeId, Math.max(0, (this.activePerRoute.get(n.routeId) || 1) - 1));
     }, 2000);
     const fn = { rhodes: this.rhodes, vibes: this.vibes, trumpet: this.trumpet,
-                 clarinet: this.clarinet, celesta: this.celesta }[n.instrument];
+                 sax: this.sax, flute: this.flute, frenchhorn: this.frenchhorn,
+                 tuba: this.tuba, violin: this.violin, celesta: this.celesta }[n.instrument];
     if (fn) fn.call(this, n.hz, n.time, n.vel, n.pan);
     if (this.onNotePlayed) {
       const delayMs = Math.max(0, (n.time - this.ctx.currentTime) * 1000);
@@ -292,30 +293,134 @@ export class Band {
     nz.start(t); nz.stop(t + 0.25);
   }
 
-  // Blue Line: clarinet. Hollow odd-harmonic square, soft round attack,
-  // held woody tone, light late vibrato.
-  clarinet(hz, t, vel, pan) {
+  // Breath noise helper for wind voices: short filtered hiss at the attack.
+  breath(dest, t, vel, freq, dur) {
+    const len = Math.ceil(this.ctx.sampleRate * (dur + 0.05));
+    const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    const nz = this.ctx.createBufferSource();
+    nz.buffer = buf;
+    const nf = this.ctx.createBiquadFilter();
+    nf.type = "bandpass"; nf.frequency.value = freq; nf.Q.value = 1;
+    const ng = this.ctx.createGain();
+    this.windEnv(ng, t, vel, 0.04, dur * 0.4, dur * 0.5);
+    nz.connect(nf).connect(ng).connect(dest);
+    nz.start(t); nz.stop(t + dur + 0.05);
+  }
+
+  // Green E (Lechmere–Heath St): saxophone. Reedy saw+square blend through a
+  // vocal-ish bandpass, breathy attack, confident vibrato.
+  sax(hz, t, vel, pan) {
     const dest = this.out(pan);
-    const hold = 0.6, stop = t + 2.6;
-
+    const hold = 0.5, stop = t + 2.4;
     const o = this.ctx.createOscillator();
-    o.type = "square"; o.frequency.value = hz;
-    const lfo = this.vibrato(o, t, 4.8, hz * 0.006, 0.35);
-    const f = this.ctx.createBiquadFilter();
-    f.type = "lowpass"; f.frequency.value = Math.min(2200, hz * 4); f.Q.value = 0.7;
-    const g = this.ctx.createGain();
-    this.windEnv(g, t, vel * 0.16, 0.11, hold, 0.45);   // square is loud; keep gain low
-    o.connect(f).connect(g).connect(dest);
-
-    // warm fundamental reinforcement
+    o.type = "sawtooth"; o.frequency.value = hz;
     const o2 = this.ctx.createOscillator();
-    o2.type = "sine"; o2.frequency.value = hz;
-    const g2 = this.ctx.createGain();
-    this.windEnv(g2, t, vel * 0.12, 0.11, hold, 0.45);
-    o2.connect(g2).connect(dest);
-
+    o2.type = "square"; o2.frequency.value = hz * 1.003;   // reedy beating
+    const lfo = this.vibrato(o, t, 5.2, hz * 0.01, 0.28);
+    const f = this.ctx.createBiquadFilter();
+    f.type = "bandpass"; f.frequency.value = Math.min(1800, hz * 2.6); f.Q.value = 1.4;
+    const g = this.ctx.createGain(); const g2 = this.ctx.createGain();
+    this.windEnv(g, t, vel * 0.42, 0.07, hold, 0.4);
+    this.windEnv(g2, t, vel * 0.1, 0.07, hold, 0.4);
+    o.connect(f).connect(g).connect(dest);
+    o2.connect(f);
+    f.connect(g2);   // square shares the formant filter
+    this.breath(dest, t, vel * 0.035, 1900, 0.2);
     o.start(t); o2.start(t);
     o.stop(stop); o2.stop(stop); lfo.stop(stop);
+  }
+
+  // Green B (to Boston College): flute. Nearly pure tone, airy attack,
+  // gentle vibrato, floats above the band.
+  flute(hz, t, vel, pan) {
+    const dest = this.out(pan);
+    const hold = 0.55, stop = t + 2.4;
+    const o = this.ctx.createOscillator();
+    o.type = "sine"; o.frequency.value = hz;
+    const o2 = this.ctx.createOscillator();
+    o2.type = "triangle"; o2.frequency.value = hz;       // faint upper harmonics
+    const lfo = this.vibrato(o, t, 5.4, hz * 0.008, 0.25);
+    const g = this.ctx.createGain(); const g2 = this.ctx.createGain();
+    this.windEnv(g, t, vel * 0.3, 0.06, hold, 0.4);
+    this.windEnv(g2, t, vel * 0.06, 0.06, hold, 0.4);
+    o.connect(g).connect(dest); o2.connect(g2).connect(dest);
+    this.breath(dest, t, vel * 0.045, 3200, 0.5);        // continuous airiness
+    o.start(t); o2.start(t);
+    o.stop(stop); o2.stop(stop); lfo.stop(stop);
+  }
+
+  // Green C (to Cleveland Circle): french horn. Dark, round, noble —
+  // detuned saws through a heavy lowpass with a soft swelling attack.
+  frenchhorn(hz, t, vel, pan) {
+    const dest = this.out(pan);
+    const hold = 0.6, stop = t + 2.8;
+    for (const [ratio, amp] of [[1, 1], [1.004, 0.7]]) {
+      const o = this.ctx.createOscillator();
+      o.type = "sawtooth"; o.frequency.value = hz * ratio;
+      const f = this.ctx.createBiquadFilter();
+      f.type = "lowpass"; f.frequency.value = Math.min(750, hz * 2.2); f.Q.value = 0.5;
+      const g = this.ctx.createGain();
+      this.windEnv(g, t, vel * 0.34 * amp, 0.13, hold, 0.55);
+      o.connect(f).connect(g).connect(dest);
+      o.start(t); o.stop(stop);
+    }
+    // body: soft sine an octave below
+    const ob = this.ctx.createOscillator();
+    ob.type = "sine"; ob.frequency.value = hz / 2;
+    const gb = this.ctx.createGain();
+    this.windEnv(gb, t, vel * 0.1, 0.13, hold, 0.55);
+    ob.connect(gb).connect(dest);
+    ob.start(t); ob.stop(stop);
+  }
+
+  // Green D (Fenway–Riverside): tuba. Fat, round, bouncy low brass —
+  // short "oom" notes with a tiny brassy blat at the front.
+  tuba(hz, t, vel, pan) {
+    const dest = this.out(pan);
+    const stop = t + 1.8;
+    const o = this.ctx.createOscillator();
+    o.type = "triangle"; o.frequency.value = hz;
+    const o2 = this.ctx.createOscillator();
+    o2.type = "sine"; o2.frequency.value = hz;
+    const f = this.ctx.createBiquadFilter();
+    f.type = "lowpass"; f.frequency.value = 320; f.Q.value = 0.7;
+    const g = this.ctx.createGain(); const g2 = this.ctx.createGain();
+    this.windEnv(g, t, vel * 0.5, 0.05, 0.25, 0.3);
+    this.windEnv(g2, t, vel * 0.3, 0.05, 0.25, 0.3);
+    o.connect(f).connect(g).connect(dest);
+    o2.connect(g2).connect(dest);
+    // brassy blat at the attack
+    const ob = this.ctx.createOscillator();
+    ob.type = "sawtooth"; ob.frequency.value = hz;
+    const fb = this.ctx.createBiquadFilter();
+    fb.type = "lowpass"; fb.frequency.value = 600;
+    const gb = this.ctx.createGain();
+    this.strikeEnv(gb, t, vel * 0.12, 0.1);
+    ob.connect(fb).connect(gb).connect(dest);
+    o.start(t); o2.start(t); ob.start(t);
+    o.stop(stop); o2.stop(stop); ob.stop(t + 0.4);
+  }
+
+  // Blue Line: violin. Bowed slow attack, singing sustain, prominent vibrato,
+  // bright but rounded top.
+  violin(hz, t, vel, pan) {
+    const dest = this.out(pan);
+    const hold = 0.7, stop = t + 3.0;
+    for (const [ratio, amp] of [[1, 1], [1.006, 0.55]]) {
+      const o = this.ctx.createOscillator();
+      o.type = "sawtooth"; o.frequency.value = hz * ratio;
+      const lfo = this.vibrato(o, t, 5.6, hz * 0.013, 0.2);
+      const f = this.ctx.createBiquadFilter();
+      f.type = "lowpass"; f.frequency.value = Math.min(3800, hz * 5); f.Q.value = 0.8;
+      const f2 = this.ctx.createBiquadFilter();
+      f2.type = "highpass"; f2.frequency.value = 250;
+      const g = this.ctx.createGain();
+      this.windEnv(g, t, vel * 0.24 * amp, 0.16, hold, 0.5);
+      o.connect(f).connect(f2).connect(g).connect(dest);
+      o.start(t); o.stop(stop); lfo.stop(stop);
+    }
   }
 
   // Mattapan: celesta. Glassy, bright, quick but with a graceful tail.
