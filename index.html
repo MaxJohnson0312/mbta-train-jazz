@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MBTA Train Jazz</title>
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div id="app">
+  <canvas id="map"></canvas>
+
+  <div id="overlay">
+    <header>
+      <h1>MBTA&nbsp;Train&nbsp;Jazz</h1>
+      <p class="tagline">Every train, a note. Boston edition.</p>
+    </header>
+
+    <div id="start-panel">
+      <button id="start-btn">▶ &nbsp;Start the band</button>
+      <p class="hint">Live vehicles from the MBTA become a jazz combo.<br>
+      Audio starts on click (browser requirement).</p>
+    </div>
+
+    <div id="controls" class="hidden">
+      <div id="legend"></div>
+      <div id="status-row">
+        <span id="conn-status" class="badge">connecting…</span>
+        <span id="vehicle-count" class="badge"></span>
+        <button id="mute-btn" title="Mute">🔊</button>
+        <button id="settings-btn" title="Settings">⚙</button>
+      </div>
+    </div>
+
+    <div id="settings-panel" class="hidden">
+      <h2>Settings</h2>
+      <label>MBTA API key (free at <a href="https://api-v3.mbta.com" target="_blank" rel="noopener">api-v3.mbta.com</a>)
+        <input type="password" id="api-key-input" placeholder="optional — enables live streaming">
+      </label>
+      <p class="hint">Without a key the app polls every 5&nbsp;s (anonymous rate limit).
+      With a key it uses the MBTA's server-sent-event stream: instant updates, one connection.</p>
+      <label class="row"><input type="checkbox" id="rhythm-toggle"> Rhythm bed (walking bass &amp; drums)</label>
+      <label class="row"><input type="checkbox" id="buses-toggle" checked> Buses drive the rhythm section</label>
+      <label class="row"><input type="checkbox" id="cr-toggle" checked> Commuter rail horns</label>
+      <label class="row"><input type="checkbox" id="ferry-toggle" checked> Ferry bells</label>
+      <label>Volume <input type="range" id="volume-slider" min="0" max="100" value="70"></label>
+      <button id="settings-close">Close</button>
+    </div>
+
+    <footer>
+      <span id="now-playing"></span>
+    </footer>
+  </div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
