@@ -124,10 +124,26 @@ async function loadShapes() {
   }
 }
 
+// iOS silent-switch workaround: Web Audio is treated as "ambient" sound and is
+// hard-muted by the ring/silent switch. A playing (silent, looping) <audio>
+// element moves the audio session to the "playback" category, which ignores the
+// switch — same trick as unmute-ios-audio. Must start inside the tap gesture.
+function unlockMediaSession() {
+  const a = new Audio(
+    // 0.1 s of silence, 8 kHz mono 16-bit WAV (generated, verified header)
+    "data:audio/wav;base64,UklGRmQGAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YUAGAAAA" +
+    "A".repeat(2132)
+  );
+  a.loop = true;
+  a.setAttribute("playsinline", "");
+  a.play().catch(() => {});   // best effort; harmless if blocked
+}
+
 // ---- UI ----
 $("start-btn").addEventListener("click", async () => {
   $("start-panel").classList.add("hidden");
   $("controls").classList.remove("hidden");
+  unlockMediaSession();
   await state.band.start();
   state.band.onNotePlayed = (routeId) => { glowLegend(routeId); state.map.pulseRoute(routeId); };
   state.band.onBar = (chord) => { $("now-playing").textContent = `now playing: ${chord} · live from the T`; };

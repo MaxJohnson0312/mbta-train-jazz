@@ -40,6 +40,23 @@ export class Band {
   async start() {
     this.ctx = new (window.AudioContext || window.webkitAudioContext)();
     await this.ctx.resume();
+
+    // iOS/Android unlock: play a silent buffer inside the user gesture, and
+    // resume again if the context is still suspended.
+    const unlock = this.ctx.createBufferSource();
+    unlock.buffer = this.ctx.createBuffer(1, 1, 22050);
+    unlock.connect(this.ctx.destination);
+    unlock.start(0);
+    if (this.ctx.state === "suspended") await this.ctx.resume();
+
+    // Mobile browsers suspend the context when the tab backgrounds; resume on
+    // return (and on any tap, belt-and-suspenders for stubborn WebKit builds).
+    document.addEventListener("visibilitychange", () => {
+      if (!document.hidden && this.ctx && this.ctx.state === "suspended") this.ctx.resume();
+    });
+    document.addEventListener("touchend", () => {
+      if (this.ctx && this.ctx.state === "suspended") this.ctx.resume();
+    }, { passive: true });
     this.master = this.ctx.createGain();
     this.master.gain.value = 0.7;
     const comp = this.ctx.createDynamicsCompressor();
