@@ -115,12 +115,16 @@ h1 {
 }
 #start-btn:disabled { opacity: 0.4; cursor: default; transform: none; }
 
+/* Legend and status row share one column so their left edges line up.
+   The column is only as wide as its widest child needs. */
 #controls {
   position: absolute;
   top: 18px; right: 18px;
+  width: fit-content;
+  max-width: calc(100vw - 36px);
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: stretch;
   gap: 10px;
 }
 
@@ -128,10 +132,36 @@ h1 {
   background: var(--panel);
   border: 1px solid #2a3040;
   border-radius: 10px;
-  padding: 12px 16px;
+  padding: 10px 14px;
   font-size: 0.8rem;
   font-family: "Segoe UI", system-ui, sans-serif;
-  max-width: 240px;
+}
+
+.legend-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+#legend-collapse {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--dim);
+  cursor: pointer;
+  font-size: 0.8rem;
+  padding: 0 2px;
+  line-height: 1;
+}
+#legend-collapse:hover { color: var(--ink); }
+
+/* Subgrid keeps every row's columns aligned while sizing to the longest text. */
+#legend-rows {
+  display: grid;
+  /* max-content (not auto) so columns hug their text instead of absorbing
+     the free space the stretched panel gives them */
+  grid-template-columns: max-content max-content max-content max-content;
+  justify-content: start;
 }
 .legend-hint {
   color: #5f6478;
@@ -141,12 +171,18 @@ h1 {
   letter-spacing: 0.02em;
 }
 .legend-item {
-  display: flex; align-items: center; gap: 8px; margin: 3px 0;
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+  align-items: center;
+  column-gap: 8px;
   cursor: pointer;
   border-radius: 4px;
-  padding: 2px 4px;
+  padding: 3px 4px;
+  white-space: nowrap;          /* every row stays on one line */
   transition: opacity 0.15s ease, background 0.15s ease;
 }
+.legend-item .name { justify-self: start; }
 .legend-item:hover { background: rgba(255, 255, 255, 0.06); }
 .legend-item.muted { opacity: 0.32; }
 .legend-item.muted .swatch { background: transparent !important; border: 1px solid currentColor; }
@@ -155,15 +191,41 @@ h1 {
   width: 10px; height: 10px; border-radius: 50%;
   flex: none;
 }
-.legend-item .who { color: var(--dim); margin-left: auto; padding-left: 12px; font-style: italic; }
+/* ~5 characters of breathing room between the line name and the instrument. */
+.legend-item .who {
+  color: var(--dim);
+  font-style: italic;
+  justify-self: start;
+  margin-left: 20px;
+}
+.legend-item .count {
+  justify-self: end;
+  min-width: 1.6em;
+  text-align: right;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  font-size: 0.78rem;
+  margin-left: 6px;
+}
+
+/* Collapsed: names only, so the legend narrows to the status row's width. */
+#legend.collapsed .legend-hint,
+#legend.collapsed .legend-item .who,
+#legend.collapsed .legend-item .count { display: none; }
+#legend.collapsed #legend-rows { grid-template-columns: max-content max-content; }
+#legend.collapsed .legend-head { margin-bottom: 2px; }
 .legend-item.playing .swatch { box-shadow: 0 0 8px 2px currentColor; }
 
 #status-row {
   display: flex;
   gap: 8px;
   align-items: center;
+  justify-content: flex-start;   /* first badge sits on the legend's left edge */
+  flex-wrap: nowrap;
   font-family: "Segoe UI", system-ui, sans-serif;
 }
+#status-row .badge { white-space: nowrap; }
+#settings-btn { margin-left: auto; }
 
 .badge {
   background: var(--panel);

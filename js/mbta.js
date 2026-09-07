@@ -92,14 +92,14 @@ export class VehicleFeed {
   }
 
   startStream() {
-    this.onStatus("connecting", "opening stream…");
+    this.onStatus("connecting", "Connecting…");
     const url = `${API_BASE}/vehicles?${VEHICLE_FILTER}${keyParam(this.apiKey)}`;
     const es = new EventSource(url);
     this.es = es;
 
     es.addEventListener("reset", (e) => {
       this.backoffMs = 1000;
-      this.onStatus("live", "live stream");
+      this.onStatus("live", "Live stream");
       this.onReset(JSON.parse(e.data).map(parseVehicle));
     });
     es.addEventListener("add", (e) => this.onVehicle(parseVehicle(JSON.parse(e.data))));
@@ -109,24 +109,24 @@ export class VehicleFeed {
     es.onerror = () => {
       es.close();
       if (this.stopped) return;
-      this.onStatus("error", `stream lost — retrying in ${Math.round(this.backoffMs / 1000)}s`);
+      this.onStatus("error", `Reconnecting in ${Math.round(this.backoffMs / 1000)}s`);
       setTimeout(() => { if (!this.stopped) this.startStream(); }, this.backoffMs);
       this.backoffMs = Math.min(this.backoffMs * 2, 30000);
     };
   }
 
   startPolling() {
-    this.onStatus("connecting", "polling (no API key)");
+    this.onStatus("connecting", "Connecting…");
     const poll = async () => {
       try {
         const r = await fetch(`${API_BASE}/vehicles?${VEHICLE_FILTER}`);
-        if (r.status === 429) { this.onStatus("error", "rate limited — add an API key"); return; }
+        if (r.status === 429) { this.onStatus("error", "Rate limited"); return; }
         if (!r.ok) throw new Error(`${r.status}`);
         const json = await r.json();
-        this.onStatus("polling", "polling every 5s (no key)");
+        this.onStatus("polling", "Polling · no API key");
         this.onReset(json.data.map(parseVehicle));
       } catch (err) {
-        this.onStatus("error", `poll failed: ${err.message}`);
+        this.onStatus("error", `Connection error`);
       }
     };
     poll();

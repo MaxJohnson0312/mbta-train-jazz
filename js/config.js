@@ -16,20 +16,31 @@ export const CARTO_KEY = "cb1_30lc_1_3a1292f7a07fd372249c8199";
 // "one instrument per line" idea. Buses are handled separately as
 // an aggregate rhythm section (250+ individual bus notes = noise).
 export const RAIL_ROUTES = {
-  "Red":      { color: "#DA291C", instrument: "rhodes",   label: "Red Line",     who: "electric piano", octave: 4, pan: -0.3 },
-  "Mattapan": { color: "#DA291C", instrument: "celesta",  label: "Mattapan",     who: "celesta",        octave: 5, pan: -0.5 },
-  "Orange":   { color: "#ED8B00", instrument: "trumpet",    label: "Orange Line",  who: "muted trumpet", octave: 4, pan: 0.3 },
-  "Blue":     { color: "#003DA5", instrument: "violin",     label: "Blue Line",    who: "violin",        octave: 5, pan: 0.5 },
-  "Green-B":  { color: "#00843D", instrument: "flute",      label: "Green Line B", who: "flute",         octave: 5, pan: -0.2 },
-  "Green-C":  { color: "#00843D", instrument: "frenchhorn", label: "Green Line C", who: "french horn",   octave: 3, pan: 0.2 },
-  "Green-D":  { color: "#00843D", instrument: "tuba",       label: "Green Line D", who: "tuba",          octave: 2, pan: 0.6 },
-  "Green-E":  { color: "#00843D", instrument: "sax",        label: "Green Line E", who: "saxophone",     octave: 4, pan: -0.6 },
+  "Red":      { color: "#DA291C", instrument: "rhodes",     label: "Red Line",     who: "Electric piano", octave: 4, pan: -0.3 },
+  "Mattapan": { color: "#DA291C", instrument: "guitar",     label: "Mattapan",     who: "Jazz guitar",    octave: 4, pan: -0.5 },
+  "Orange":   { color: "#ED8B00", instrument: "trumpet",    label: "Orange Line",  who: "Muted trumpet",  octave: 4, pan: 0.3 },
+  "Blue":     { color: "#003DA5", instrument: "violin",     label: "Blue Line",    who: "Violin",         octave: 5, pan: 0.5 },
+  "Green-B":  { color: "#00843D", instrument: "flute",      label: "Green Line B", who: "Flute",          octave: 5, pan: -0.2 },
+  "Green-C":  { color: "#00843D", instrument: "frenchhorn", label: "Green Line C", who: "French horn",    octave: 3, pan: 0.2 },
+  "Green-D":  { color: "#00843D", instrument: "tuba",       label: "Green Line D", who: "Tuba",           octave: 2, pan: 0.6 },
+  "Green-E":  { color: "#00843D", instrument: "sax",        label: "Green Line E", who: "Saxophone",      octave: 4, pan: -0.6 },
+  // Silver Line is bus-classified in GTFS but is rapid transit in spirit — it
+  // gets a melodic voice and is kept out of the bus percussion count.
+  "741":      { color: "#7C878E", instrument: "vibes",      label: "Silver Line",  who: "Vibraphone",    octave: 5, pan: -0.4 },
+  "742":      { color: "#7C878E", instrument: "vibes",      label: "Silver Line",  who: "Vibraphone",    octave: 5, pan: -0.15 },
+  "743":      { color: "#7C878E", instrument: "vibes",      label: "Silver Line",  who: "Vibraphone",    octave: 5, pan: 0.1 },
+  "746":      { color: "#7C878E", instrument: "vibes",      label: "Silver Line",  who: "Vibraphone",    octave: 4, pan: 0.35 },
+  "749":      { color: "#7C878E", instrument: "vibes",      label: "Silver Line",  who: "Vibraphone",    octave: 4, pan: -0.25 },
+  "751":      { color: "#7C878E", instrument: "vibes",      label: "Silver Line",  who: "Vibraphone",    octave: 4, pan: 0.5 },
 };
 
+// Silver Line routes, grouped under one legend row.
+export const SILVER_LINE = ["741", "742", "743", "746", "749", "751"];
+
 // Modes matched by prefix / route_type rather than exact id.
-export const CR_STYLE    = { color: "#80276C", instrument: "horn", who: "horn section", octave: 3 };
-export const FERRY_STYLE = { color: "#008EAA", instrument: "bell", who: "ship's bell",  octave: 5 };
-export const BUS_STYLE   = { color: "#946e2a", who: "brushes & shaker" };
+export const CR_STYLE    = { color: "#80276C", instrument: "contrabass", who: "Double bass", octave: 2 };
+export const FERRY_STYLE = { color: "#008EAA", instrument: "bell", who: "Ship's bell",  octave: 5 };
+export const BUS_STYLE   = { color: "#946e2a", who: "Brushes & shaker" };
 
 export const ROUTE_TYPE = { LIGHT_RAIL: 0, HEAVY_RAIL: 1, COMMUTER: 2, BUS: 3, FERRY: 4 };
 

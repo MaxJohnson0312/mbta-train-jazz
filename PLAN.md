@@ -184,10 +184,45 @@ Two paths, in order of pragmatism:
   Note: this machine's homelab (elite-server, see EliteDesk Server Setup project) could
   also host the web version 24/7 in Docker trivially — same static folder + any web server.
 
-## 6b. Sound sources (settled 2026-09-07)
+## 6a. Sound sources — CURRENT STATE (settled 2026-09-07, read this first)
 
-**Instruments are RECORDED SAMPLES, not synthesis.** Max correctly judged the hand-rolled
-Web Audio oscillator voices as not good enough. The band now plays FluidR3_GM samples from
+**SYNTHESIS IS THE DEFAULT. Samples are opt-in and OFF.** Max tried the sampled build and
+never heard instruments, and asked to go back to synthesis ("I can find a way to tune them
+better in the future"). So:
+
+- `js/music.js` synthesizes every voice with oscillators. This is the shipped path.
+- Samples still exist (§6b) but only load if the user ticks **Settings → Recorded
+  instruments**, which sets `localStorage.use_samples = "1"`. Default is off.
+- `loadSamples()` is **never awaited by the boot sequence**. This was the bug behind
+  "I only hear brushes and shaker": the old code awaited a ~4 MB / 180-file load before
+  calling `startFeed()`, so on a slow load the data feed never started, `busDensity`
+  stayed 0, and the only audible thing was the density-0 drum pattern. Never reintroduce
+  a blocking await between `band.start()` and `startFeed()`.
+
+**Verified working** via `selftest.html` (see §6d) — all 14 voices render audible peaks.
+
+**Instrument map (Max's picks):** Red = electric piano, Mattapan = jazz guitar,
+Orange = muted trumpet, Blue = violin, Green-B = flute, Green-C = french horn,
+Green-D = tuba, Green-E = saxophone, **Silver Line = vibraphone**, Commuter Rail =
+pizzicato double bass line, Ferries = ship's bell, Buses = brushes & shaker density.
+
+**Silver Line** (routes 741/742/743/746/749/751) is `route_type` 3 (bus) in GTFS but is
+treated as rapid transit here: it gets a melodic voice, is excluded from the bus
+percussion count, and its six routes collapse into one legend row (`SILVER_LINE` in
+config.js; `legendKeyOf()` in main.js does the grouping).
+
+**Drums are humanized** — swung "spang-a-lang" ride, ±7 ms timing jitter, velocity
+variation, probabilistic shaker and brush sweeps. Earlier versions were a metronomic
+thud because the density-0 branch had no randomization at all. Note: humanized timing
+can push a scheduled time below zero, which throws `RangeError` in Web Audio — the
+envelope helpers and `noiseBurst`/`sweep` all clamp with `Math.max(0, t)`. Keep that.
+
+**Mix balance:** voice gains were tuned so no line dominates (tuba was 5× the trumpet).
+If you add a voice, render it through selftest and aim for a peak near 0.2–0.3.
+
+## 6b. The sample path (opt-in, kept for future tuning)
+
+The band *can* play FluidR3_GM samples from
 [gleitz/midi-js-soundfonts](https://github.com/gleitz/midi-js-soundfonts) (MIT repo;
 FluidR3_GM soundfont is freely redistributable), **self-hosted** in `samples/`:
 
@@ -205,6 +240,53 @@ FluidR3_GM soundfont is freely redistributable), **self-hosted** in `samples/`:
   horn(CR)=brass_section, bell(ferry)=tubular_bells, bass=acoustic_bass.
 - If the note set changes (new chords/octaves), re-run the downloader and regenerate the
   manifest, or those notes silently fall back to pitch-shifting/synthesis.
+
+## 6c. UI details worth preserving
+
+- **Legend** (top right) uses CSS **subgrid** so columns hug their content: rows never
+  wrap, `.who` sits 20 px (~5 characters) after the line name, counts are tight. Use
+  `max-content` columns, never `auto` — `auto` absorbs the panel's free space and
+  scatters the row. `#controls` is `width: fit-content` with `align-items: stretch`, so
+  the legend and the status row share a left edge (Max asked for this alignment).
+- **Click a legend row to mute that line.** The Silver row mutes all six SL routes; the
+  Buses row toggles the percussion. Muted rows dim + strike through.
+- **Collapse button** (▾/▸) in the legend header hides the instrument and count columns,
+  leaving swatch + line name at the status row's width.
+- **Per-line live vehicle counts** come from `counts` (legend key → Set of vehicle ids),
+  rebuilt on every SSE `reset` and re-rendered every 2 s.
+- All user-facing strings start with a capital letter (Max's request) — including the
+  connection badges in `mbta.js`.
+- **`?autostart=1`** clicks Start automatically — this is how the Raspberry Pi kiosk will
+  run it (needs Chromium's `--autoplay-policy=no-user-gesture-required`).
+
+## 6d. Testing harness (use this, don't guess)
+
+Two unlisted pages ship with the site:
+
+- **`selftest.html`** — imports the real modules, renders each voice through the real
+  trigger path into an `OfflineAudioContext`, and reports peak amplitude per voice, so
+  "is it actually audible" is a measured fact rather than a guess. It also posts each
+  line to `/report?msg=…` so a test server can capture results headlessly.
+- **`preview.html`** — renders the legend (expanded + collapsed) with real config and
+  fake counts, for screenshotting UI changes without needing live data.
+
+Run them headlessly (Chrome is at `C:\Program Files\Google\Chrome\Application\chrome.exe`):
+
+```
+# serve + capture: scratchpad/testserver.py <site-dir> <port> <logfile> also handles /report
+python testserver.py "<site dir>" 8010 out.log
+chrome --headless=new --disable-gpu --no-sandbox --user-data-dir=<tmp> http://127.0.0.1:8010/selftest.html
+# screenshots:
+chrome --headless=new --window-size=900,640 --virtual-time-budget=6000 \
+       --screenshot=out.png --user-data-dir=<tmp> http://127.0.0.1:8010/preview.html
+```
+
+Caveat learned the hard way: `--virtual-time-budget` does **not** wait for audio decoding
+or long fetch chains — it blows through them and dumps early, which looks exactly like a
+hang. For anything involving `decodeAudioData` or the sample loader, use a real-time wait
+(start Chrome with `Start-Process`, `Start-Sleep`, then read the captured log). Also, don't
+point `--dump-dom`/`--screenshot` at `index.html` with the live SSE stream open — the page
+never settles and Chrome hangs; use `preview.html` or `?autostart=1` with a real-time wait.
 
 **CARTO key / attribution.** `CARTO_KEY` in config.js is passed as `?key=` on tile URLs for
 usage tracking. It does **not** remove attribution and cannot: the basemap is OpenStreetMap

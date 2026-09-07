@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="css/style.css">
+<style>body{padding:0}#controls{position:static;margin:20px;}</style></head>
+<body>
+<div id="controls" style="display:flex">
+  <div id="legend"></div>
+  <div id="status-row">
+    <span id="conn-status" class="badge live">Live stream</span>
+    <span id="vehicle-count" class="badge">642 vehicles</span>
+    <button id="mute-btn">🔊</button>
+    <button id="settings-btn">⚙</button>
+  </div>
+</div>
+<div id="controls" style="display:flex">
+  <div id="legend" class="collapsed"></div>
+  <div id="status-row">
+    <span class="badge live">Live stream</span>
+    <span class="badge">642 vehicles</span>
+    <button id="m2">🔊</button><button id="s2">⚙</button>
+  </div>
+</div>
+<script type="module">
+import { RAIL_ROUTES, SILVER_LINE, CR_STYLE, FERRY_STYLE, BUS_STYLE } from "./js/config.js";
+const rows = [];
+for (const [id, s] of Object.entries(RAIL_ROUTES)) {
+  if (SILVER_LINE.includes(id)) continue;
+  rows.push({ id, color: s.color, label: s.label, who: s.who });
+}
+const sl = RAIL_ROUTES[SILVER_LINE[0]];
+rows.push({ id: "Silver", color: sl.color, label: sl.label, who: sl.who });
+rows.push({ id: "CR", color: CR_STYLE.color, label: "Commuter Rail", who: CR_STYLE.who });
+rows.push({ id: "Boat", color: FERRY_STYLE.color, label: "Ferries", who: FERRY_STYLE.who });
+rows.push({ id: "Bus", color: BUS_STYLE.color, label: "Buses", who: BUS_STYLE.who });
+const counts = { Red: 18, Mattapan: 2, "Orange": 14, Blue: 9, "Green-B": 11, "Green-C": 8,
+                 "Green-D": 12, "Green-E": 9, Silver: 7, CR: 41, Boat: 3, Bus: 388 };
+const html = `<div class="legend-head"><span class="legend-hint">Click an instrument to mute it</span>
+  <button id="legend-collapse">▾</button></div><div id="legend-rows">` +
+  rows.map(r => `<div class="legend-item" data-route="${r.id}">
+    <span class="swatch" style="background:${r.color};color:${r.color}"></span>
+    <span class="name">${r.label}</span><span class="who">${r.who}</span>
+    <span class="count">${counts[r.id] ?? ""}</span></div>`).join("") + `</div>`;
+for (const el of document.querySelectorAll("#legend")) el.innerHTML = html;
+document.querySelectorAll(".legend-item")[3].classList.add("muted");
+</script></body></html>

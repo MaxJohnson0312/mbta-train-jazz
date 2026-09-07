@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>selftest</title></head>
+<body><pre id="out">running…</pre>
+<script type="module">
+const log = [];
+const say = (s) => {
+  log.push(s);
+  document.getElementById("out").textContent = log.join("\n");
+  fetch("/report?msg=" + encodeURIComponent(s)).catch(() => {});
+};
+window.onerror = (m, f, l) => say(`WINDOW ERROR: ${m} @ ${f}:${l}`);
+window.onunhandledrejection = (e) => say(`UNHANDLED REJECTION: ${e.reason}`);
+
+// Render one voice alone and report its peak — proves the SYNTH path is audible.
+async function peakOf(label, fn) {
+  const ctx = new OfflineAudioContext(2, 44100 * 4, 44100);
+  const { Band } = await import("./js/music.js");
+  const b = new Band();
+  b.ctx = ctx;
+  b.master = ctx.createGain();
+  b.master.connect(ctx.destination);
+  b.startTime = 0;
+  fn(b);
+  const r = await ctx.startRendering();
+  let peak = 0;
+  for (let c = 0; c < 2; c++) {
+    const d = r.getChannelData(c);
+    for (let i = 0; i < d.length; i++) { const a = Math.abs(d[i]); if (a > peak) peak = a; }
+  }
+  say(`  ${label.padEnd(16)} peak ${peak.toFixed(4)} ${peak > 0.005 ? "OK" : "*** SILENT ***"}`);
+  return peak;
+}
+
+try {
+  const cfg = await import("./js/config.js");
+  say(`modules ok — ${Object.keys(cfg.RAIL_ROUTES).length} routes`);
+
+  // Every distinct instrument, driven through the real trigger path (no samples).
+  const seen = new Set();
+  for (const [id, s] of Object.entries(cfg.RAIL_ROUTES)) {
+    if (seen.has(s.instrument)) continue;
+    seen.add(s.instrument);
+    await peakOf(`${id}/${s.instrument}`, (b) => {
+      b.triggerVehicleNote(id, 0.4, 0, true);
+      for (const n of b.pendingNotes) b.playMelodic(n);
+    });
+  }
+  await peakOf("commuter/bass", (b) => b.triggerBassLine(0.6));
+  await peakOf("ferry/bell", (b) => b.triggerBell());
+  await peakOf("drums(density1)", (b) => {
+    b.enabled.buses = true; b.busDensity = 1;
+    for (let i = 0; i < 4; i++) b.scheduleBeat(i, i * b.secPerBeat);
+  });
+  await peakOf("drums(density0)", (b) => {
+    b.enabled.buses = true; b.busDensity = 0;
+    for (let i = 0; i < 4; i++) b.scheduleBeat(i, i * b.secPerBeat);
+  });
+  await peakOf("rhythm bed", (b) => {
+    b.enabled.rhythm = true; b.enabled.buses = false;
+    for (let i = 0; i < 4; i++) b.scheduleBeat(i, i * b.secPerBeat);
+  });
+  say("DONE");
+} catch (e) {
+  say(`FATAL: ${e && e.stack || e}`);
+}
+</script></body></html>

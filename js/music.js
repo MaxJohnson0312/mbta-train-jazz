@@ -72,14 +72,24 @@ export class Band {
     for (const [voice, midis] of Object.entries(manifest))
       for (const midi of midis) jobs.push([voice, midi]);
 
+    // Safari's decodeAudioData is callback-based and returns undefined, so
+    // `await` on it yields undefined rather than a buffer. Normalize both forms.
+    const decode = (arrayBuf) => new Promise((resolve, reject) => {
+      const maybe = this.ctx.decodeAudioData(arrayBuf, resolve, reject);
+      if (maybe && typeof maybe.then === "function") maybe.then(resolve, reject);
+    });
+
     let done = 0;
     const load = async ([voice, midi]) => {
       try {
         const res = await fetch(`${SAMPLE_BASE}/${voice}/${midiToName(midi)}.mp3`);
-        const buf = await this.ctx.decodeAudioData(await res.arrayBuffer());
-        (this.buffers[voice] ||= {})[midi] = buf;
-      } catch { /* leave the gap; playSample falls back */ }
-      if (onProgress) onProgress(++done, jobs.length);
+        if (!res.ok) throw new Error(res.status);
+        const buf = await decode(await res.arrayBuffer());
+        // Never store a non-buffer: playSample would "succeed" and be silent.
+        if (buf && buf.duration > 0) (this.buffers[voice] ||= {})[midi] = buf;
+      } catch { /* leave the gap; playSample falls back to synthesis */ }
+      // A throwing progress callback must not abort the whole load.
+      try { if (onProgress) onProgress(++done, jobs.length); } catch {}
     };
 
     // modest concurrency so mobile doesn't choke on parallel decodes
@@ -96,12 +106,13 @@ export class Band {
   // so callers can fall back to synthesis.
   playSample(voice, midi, t, vel, pan, fadeAfter = 3.0) {
     const bank = this.buffers[voice];
-    if (!bank) return false;
+    if (!bank || !this.master) return false;
 
     let buf = bank[midi], rate = 1;
     if (!buf) {                                  // nearest sample, pitch-shifted
       let best = null, bestD = Infinity;
       for (const k of Object.keys(bank)) {
+        if (!bank[k]) continue;
         const d = Math.abs(k - midi);
         if (d < bestD) { bestD = d; best = +k; }
       }
@@ -109,6 +120,7 @@ export class Band {
       buf = bank[best];
       rate = Math.pow(2, (midi - best) / 12);
     }
+    if (!buf) return false;   // fall through to synthesis rather than play silence
 
     const src = this.ctx.createBufferSource();
     src.buffer = buf;
@@ -194,10 +206,32 @@ export class Band {
     if (!this.enabled.buses && !this.enabled.rhythm) return;
     const density = this.enabled.buses ? this.busDensity : 0.35;
 
-    this.ride(t, 0.5 + density * 0.3);                       // downbeat ride
-    if (density > 0.15) this.ride(t + this.secPerBeat * SWING, 0.25 + density * 0.35); // swung off-8th
-    if (beatInBar === 1 || beatInBar === 3) this.hat(t, 0.5);
-    if (density > 0.45 && Math.random() < density) this.shaker(t + this.secPerBeat * 0.5, 0.2);
+    // Humanize: a drummer is never on the grid and never at one volume.
+    const hum = () => (Math.random() - 0.5) * 0.014;             // ±7 ms
+    const vel = (base, spread) => base * (1 - spread + Math.random() * spread * 2);
+    const swung = t + this.secPerBeat * SWING;
+
+    // Ride: the classic "spang-a-lang" — a quarter on every beat, with the
+    // swung eighth landing after beats 2 and 4 (occasionally dropped).
+    this.ride(t + hum(), vel(0.42 + density * 0.22, 0.28));
+    const backbeat = beatInBar === 1 || beatInBar === 3;
+    if (backbeat) {
+      if (Math.random() < 0.88) this.ride(swung + hum(), vel(0.3 + density * 0.26, 0.3));
+    } else if (density > 0.3 && Math.random() < density * 0.55) {
+      this.ride(swung + hum(), vel(0.2 + density * 0.18, 0.35));
+    }
+
+    // Hi-hat "chick" closes on 2 and 4.
+    if (backbeat) this.hat(t + hum(), vel(0.5, 0.22));
+
+    // Shaker fills in as the bus fleet grows.
+    if (density > 0.35) {
+      if (Math.random() < 0.85) this.shaker(t + hum(), vel(0.18, 0.45));
+      if (Math.random() < density) this.shaker(swung + hum(), vel(0.12, 0.5));
+    }
+
+    // Brush sweep across the top of a bar, now and then.
+    if (beatInBar === 0 && Math.random() < 0.3) this.sweep(t + hum(), 0.09 + density * 0.09);
   }
 
   // Quantize an incoming event to the next swung 8th at/after now.
@@ -245,13 +279,16 @@ export class Band {
     });
   }
 
-  triggerHorn(progress01) {
+  // Commuter rail: a walking double-bass line. Trains are few and slow, so each
+  // arrival plants one deep pizzicato note from the current chord's bass tones.
+  triggerBassLine(progress01) {
     if (!this.ctx || !this.enabled.cr || this.mutedRoutes.has("CR")) return;
     const { time, beat } = this.nextGridTime();
     const chord = this.chordAt(Math.max(0, beat));
-    const semis = chord.root + (progress01 > 0.5 ? 7 : 0);
-    if (!this.playSample("horn", pitchMidi(semis, 3), time, 0.5, -0.1, 2.2))
-      this.horn(pitchHz(semis, 3), time, 0.5);
+    const notes = chord.bassNotes;
+    const semis = notes[Math.min(notes.length - 1, Math.floor(progress01 * notes.length))];
+    if (!this.playSample("contrabass", pitchMidi(semis, 2), time, 0.6, -0.15, 1.8))
+      this.contrabass(pitchHz(semis, 2), time, 0.75, -0.15);
   }
 
   triggerBell() {
@@ -269,7 +306,8 @@ export class Band {
     if (!this.playSample(n.instrument, n.midi, n.time, n.vel, n.pan)) {
       const fn = { rhodes: this.rhodes, vibes: this.vibes, trumpet: this.trumpet,
                    sax: this.sax, flute: this.flute, frenchhorn: this.frenchhorn,
-                   tuba: this.tuba, violin: this.violin, celesta: this.celesta }[n.instrument];
+                   tuba: this.tuba, violin: this.violin, celesta: this.celesta,
+                   guitar: this.guitar }[n.instrument];
       if (fn) fn.call(this, n.hz, n.time, n.vel, n.pan);
     }
     if (this.onNotePlayed) {
@@ -290,6 +328,7 @@ export class Band {
   // hard endpoint. `ring` is the perceived decay time; the caller must keep
   // its oscillators alive until ~t + ring * 1.6.
   strikeEnv(gainNode, t, peak, ring) {
+    t = Math.max(0, t);   // humanized timing can nudge a note before zero
     const g = gainNode.gain;
     g.setValueAtTime(0.0001, t);
     g.exponentialRampToValueAtTime(peak, t + 0.005);
@@ -298,6 +337,7 @@ export class Band {
 
   // Sustained (wind) envelope: slow attack, held body, gentle release tail.
   windEnv(gainNode, t, peak, attack, hold, release) {
+    t = Math.max(0, t);
     const g = gainNode.gain;
     g.setValueAtTime(0.0001, t);
     g.exponentialRampToValueAtTime(peak, t + attack);
@@ -328,7 +368,7 @@ export class Band {
       o.type = "sine";
       o.frequency.value = hz * ratio;
       const g = this.ctx.createGain();
-      this.strikeEnv(g, t, vel * 0.22 * amp, ring);
+      this.strikeEnv(g, t, vel * 0.27 * amp, ring);
       o.connect(g).connect(dest);
       o.start(t); o.stop(stop);
     }
@@ -373,7 +413,7 @@ export class Band {
     f.frequency.setValueAtTime(Math.min(900, hz * 2), t);
     f.frequency.linearRampToValueAtTime(Math.min(1600, hz * 3.5), t + 0.35);
     const g = this.ctx.createGain();
-    this.windEnv(g, t, vel * 0.5, 0.09, hold, 0.5);
+    this.windEnv(g, t, vel * 0.72, 0.09, hold, 0.5);
     o.connect(f).connect(g).connect(dest);
     o.start(t); o.stop(stop); lfo.stop(stop);
 
@@ -421,7 +461,7 @@ export class Band {
     const f = this.ctx.createBiquadFilter();
     f.type = "bandpass"; f.frequency.value = Math.min(1800, hz * 2.6); f.Q.value = 1.4;
     const g = this.ctx.createGain(); const g2 = this.ctx.createGain();
-    this.windEnv(g, t, vel * 0.42, 0.07, hold, 0.4);
+    this.windEnv(g, t, vel * 0.28, 0.07, hold, 0.4);
     this.windEnv(g2, t, vel * 0.1, 0.07, hold, 0.4);
     o.connect(f).connect(g).connect(dest);
     o2.connect(f);
@@ -486,8 +526,8 @@ export class Band {
     const f = this.ctx.createBiquadFilter();
     f.type = "lowpass"; f.frequency.value = 320; f.Q.value = 0.7;
     const g = this.ctx.createGain(); const g2 = this.ctx.createGain();
-    this.windEnv(g, t, vel * 0.5, 0.05, 0.25, 0.3);
-    this.windEnv(g2, t, vel * 0.3, 0.05, 0.25, 0.3);
+    this.windEnv(g, t, vel * 0.26, 0.05, 0.25, 0.3);
+    this.windEnv(g2, t, vel * 0.16, 0.05, 0.25, 0.3);
     o.connect(f).connect(g).connect(dest);
     o2.connect(g2).connect(dest);
     // brassy blat at the attack
@@ -537,6 +577,52 @@ export class Band {
     o.start(t); o2.start(t); o.stop(stop); o2.stop(stop);
   }
 
+  // Mattapan: jazz guitar. Warm plucked tone — quick pick attack, mellow body,
+  // rolled-off highs like an archtop through a small amp.
+  guitar(hz, t, vel, pan) {
+    const dest = this.out(pan);
+    const stop = t + 3.0;
+    for (const [ratio, amp, ring] of [[1, 1, 1.5], [2, 0.35, 0.7], [3, 0.14, 0.35], [4, 0.06, 0.2]]) {
+      const o = this.ctx.createOscillator();
+      o.type = "triangle";
+      o.frequency.value = hz * ratio;
+      const g = this.ctx.createGain();
+      this.strikeEnv(g, t, vel * 0.25 * amp, ring);
+      o.connect(g).connect(dest);
+      o.start(t); o.stop(stop);
+    }
+    // pick transient
+    const f = this.ctx.createBiquadFilter();
+    f.type = "bandpass"; f.frequency.value = Math.min(3000, hz * 6); f.Q.value = 1.5;
+    const len = Math.ceil(this.ctx.sampleRate * 0.05);
+    const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    const nz = this.ctx.createBufferSource();
+    nz.buffer = buf;
+    const ng = this.ctx.createGain();
+    this.strikeEnv(ng, t, vel * 0.05, 0.03);
+    nz.connect(f).connect(ng).connect(dest);
+    nz.start(t); nz.stop(t + 0.06);
+  }
+
+  // Commuter rail: pizzicato double bass — a deep, woody plucked note.
+  contrabass(hz, t, vel, pan) {
+    const dest = this.out(pan);
+    const stop = t + 2.4;
+    for (const [ratio, amp, ring] of [[1, 1, 1.1], [2, 0.3, 0.4], [3, 0.1, 0.2]]) {
+      const o = this.ctx.createOscillator();
+      o.type = "triangle";
+      o.frequency.value = hz * ratio;
+      const f = this.ctx.createBiquadFilter();
+      f.type = "lowpass"; f.frequency.value = 420; f.Q.value = 0.8;
+      const g = this.ctx.createGain();
+      this.strikeEnv(g, t, vel * 0.5 * amp, ring);
+      o.connect(f).connect(g).connect(dest);
+      o.start(t); o.stop(stop);
+    }
+  }
+
   // Commuter rail: low horn-section swell (two detuned saws + octave).
   horn(hz, t, vel) {
     const dest = this.out(-0.1);
@@ -570,7 +656,7 @@ export class Band {
     car.frequency.value = hz;
     mod.connect(modG).connect(car.frequency);
     const g = this.ctx.createGain();
-    this.strikeEnv(g, t, vel * 0.25, 2.6);
+    this.strikeEnv(g, t, vel * 0.4, 2.6);
     car.connect(g).connect(dest);
     mod.start(t); car.start(t); mod.stop(stop); car.stop(stop);
   }
@@ -591,6 +677,7 @@ export class Band {
   }
 
   noiseBurst(t, vel, filterType, freq, q, decay) {
+    t = Math.max(0, t);
     const len = Math.ceil(this.ctx.sampleRate * (decay + 0.1));
     const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
     const d = buf.getChannelData(0);
@@ -608,4 +695,26 @@ export class Band {
   ride(t, vel)  { this.noiseBurst(t, vel * 0.12, "bandpass", 5200, 1.2, 0.35); }
   hat(t, vel)   { this.noiseBurst(t, vel * 0.10, "highpass", 7000, 1, 0.06); }
   shaker(t, vel){ this.noiseBurst(t, vel * 0.5, "bandpass", 6800, 2.5, 0.05); }
+
+  // Brush sweep: soft noise that swells and falls across most of a beat.
+  sweep(t, vel) {
+    t = Math.max(0, t);
+    const dur = this.secPerBeat * 0.8;
+    const len = Math.ceil(this.ctx.sampleRate * (dur + 0.1));
+    const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    const src = this.ctx.createBufferSource();
+    src.buffer = buf;
+    const f = this.ctx.createBiquadFilter();
+    f.type = "bandpass"; f.Q.value = 0.8;
+    f.frequency.setValueAtTime(1800, t);
+    f.frequency.linearRampToValueAtTime(3600, t + dur);   // the sweep itself
+    const g = this.ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(vel, t + dur * 0.45);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(f).connect(g).connect(this.master);
+    src.start(t); src.stop(t + dur + 0.1);
+  }
 }
